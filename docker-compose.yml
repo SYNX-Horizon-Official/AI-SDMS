@@ -1,73 +1,45 @@
 version: '3.8'
-
 services:
-  mongodb:
-    image: mongo:7.0
-    container_name: ai-sdms-mongodb
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password123
+  mongo:
+    image: mongo:6
+    restart: unless-stopped
     volumes:
-      - mongodb_data:/data/db
+      - mongo-data:/data/db
     networks:
-      - ai-sdms-network
+      - ai-sdms
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: ai-sdms-backend
+    build: ./backend
+    command: sh -c "npm install && node src/index.js"
     ports:
-      - "5000:5000"
+      - "4000:4000"
     environment:
-      NODE_ENV: development
-      MONGODB_URI: mongodb://admin:password123@mongodb:27017/ai-sdms?authSource=admin
-      JWT_SECRET: your_jwt_secret_key_here
-      OLLAMA_BASE_URL: http://ollama:11434
-      PORT: 5000
-    depends_on:
-      - mongodb
+      - MONGO_URI=mongodb://mongo:27017/ai-sdms
+      - FILE_UPLOAD_PATH=/srv/uploads
     volumes:
-      - ./backend/src:/app/src
+      - ./backend:/usr/src/app
+      - ./uploads:/srv/uploads
+      - ./temp_uploads:/usr/src/app/temp_uploads
+    depends_on:
+      - mongo
     networks:
-      - ai-sdms-network
-    command: npm start
+      - ai-sdms
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: ai-sdms-frontend
+    build: ./frontend
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
     ports:
       - "5173:5173"
     environment:
-      VITE_API_URL: http://localhost:5000
-    depends_on:
-      - backend
+      - VITE_API_URL=http://localhost:4000/api
     volumes:
-      - ./frontend/src:/app/src
+      - ./frontend:/usr/src/app
     networks:
-      - ai-sdms-network
-    command: npm run dev
-
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ai-sdms-ollama
-    ports:
-      - "11434:11434"
-    environment:
-      OLLAMA_HOST: 0.0.0.0:11434
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - ai-sdms-network
+      - ai-sdms
 
 volumes:
-  mongodb_data:
-  ollama_data:
+  mongo-data:
 
 networks:
-  ai-sdms-network:
+  ai-sdms:
     driver: bridge
